@@ -2,6 +2,7 @@ package logrus
 
 import (
 	"io"
+	"reflect"
 )
 
 var (
@@ -58,12 +59,20 @@ func WithField(key string, value interface{}) *Entry {
 }
 
 // WithFields creates an entry from the standard logger and adds multiple
-// fields to it. This is simply a helper for `WithField`, invoking it
-// once for each field.
+// fields to it. This converts a map[string]interface{} to a Fields and
+// invokes std.WithFields()
 //
 // Note that it doesn't log until you call Debug, Print, Info, Warn, Fatal
 // or Panic on the Entry it returns.
-func WithFields(fields Fields) *Entry {
+func WithFields(i interface{}) *Entry {
+	v := reflect.ValueOf(i)
+	keys := v.MapKeys()
+	fields := Fields{}
+	for _, k := range keys {
+		if k.Kind() == reflect.String {
+			fields[k.Interface().(string)] = v.MapIndex(k).Interface()
+		}
+	}
 	return std.WithFields(fields)
 }
 

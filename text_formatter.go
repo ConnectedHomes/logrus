@@ -54,6 +54,27 @@ type TextFormatter struct {
 	// that log extremely frequently and don't use the JSON formatter this may not
 	// be desired.
 	DisableSorting bool
+
+	// Terminal escape colours, e.g.
+	// map[Level]string{
+	//   DebugLevel: "36",
+	//   ErrorLevel: "1;3;7;31",
+	// }
+	LevelColors map[Level]string
+}
+
+func DefaultTextFormatter() *TextFormatter {
+	return &TextFormatter{
+		TimestampFormat: DefaultTimestampFormat,
+		LevelColors: map[Level]string{
+			DebugLevel: "36",
+			InfoLevel:  "32",
+			WarnLevel:  "33",
+			ErrorLevel: "91",
+			FatalLevel: "35",
+			PanicLevel: "42",
+		},
+	}
 }
 
 func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
@@ -73,15 +94,11 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 	isColorTerminal := isTerminal && (runtime.GOOS != "windows")
 	isColored := (f.ForceColors || isColorTerminal) && !f.DisableColors
 
-	timestampFormat := f.TimestampFormat
-	if timestampFormat == "" {
-		timestampFormat = DefaultTimestampFormat
-	}
 	if isColored {
-		f.printColored(b, entry, keys, timestampFormat)
+		f.printColored(b, entry, keys, f.TimestampFormat)
 	} else {
 		if !f.DisableTimestamp {
-			f.appendKeyValue(b, "time", entry.Time.Format(timestampFormat))
+			f.appendKeyValue(b, "time", entry.Time.Format(f.TimestampFormat))
 		}
 		f.appendKeyValue(b, "level", entry.Level.String())
 		f.appendKeyValue(b, "msg", entry.Message)
@@ -95,28 +112,17 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 }
 
 func (f *TextFormatter) printColored(b *bytes.Buffer, entry *Entry, keys []string, timestampFormat string) {
-	var levelColor int
-	switch entry.Level {
-	case DebugLevel:
-		levelColor = gray
-	case WarnLevel:
-		levelColor = yellow
-	case ErrorLevel, FatalLevel, PanicLevel:
-		levelColor = red
-	default:
-		levelColor = blue
-	}
-
+	levelColor := f.LevelColors[entry.Level]
 	levelText := strings.ToUpper(entry.Level.String())[0:4]
 
 	if !f.FullTimestamp {
-		fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%04d] %-44s ", levelColor, levelText, miniTS(), entry.Message)
+		fmt.Fprintf(b, "\x1b[%sm%s\x1b[0m[%04d] %-34s ", levelColor, levelText, miniTS(), entry.Message)
 	} else {
-		fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%s] %-44s ", levelColor, levelText, entry.Time.Format(timestampFormat), entry.Message)
+		fmt.Fprintf(b, "\x1b[%sm%s\x1b[0m[%s] %-34s ", levelColor, levelText, entry.Time.Format(timestampFormat), entry.Message)
 	}
 	for _, k := range keys {
 		v := entry.Data[k]
-		fmt.Fprintf(b, " \x1b[%dm%s\x1b[0m=%+v", levelColor, k, v)
+		fmt.Fprintf(b, " \x1b[%sm%s\x1b[90m=\x1b[0m%+v", levelColor, k, v)
 	}
 }
 
